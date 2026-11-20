@@ -1,7 +1,7 @@
 let currentUsername = "";
 let isSiteAdmin = false;
 let currentServerId = "hub";
-let inHomeView = false; // True when clicking the top-left Discord DM Home icon
+let inHomeView = false;
 let activeType = "channel";
 let activeTarget = "general";
 let cachedMembers = [];
@@ -25,6 +25,7 @@ function getAvatarColor(name) {
 function closeModals() {
     document.getElementById("user_modal").style.display = "none";
     document.getElementById("srv_modal").style.display = "none";
+    document.getElementById("add_srv_modal").style.display = "none";
 }
 
 document.addEventListener("keydown", e => {
@@ -78,10 +79,12 @@ async function postJson(url, body) {
     if (res.status === 401) window.location.href = "/";
     return res;
 }
+
 function renderServerModal() {
     if (!cachedServer) return;
     document.getElementById("fs_srv_cat").textContent = cachedServer.name;
     document.getElementById("set_srv_name").value = cachedServer.name;
+    document.getElementById("srv_invite_code").value = cachedServer.invite || "PUBLIC";
     selectedBanner = cachedServer.banner || "#18191c";
 
     const updatePreview = () => {
@@ -145,7 +148,6 @@ function renderServerModal() {
         cList.appendChild(chip);
     }
 }
-
 function buildMemberRow(m, srv) {
     const row = document.createElement("div");
     row.className = "member-row";
@@ -212,6 +214,7 @@ function buildMemberRow(m, srv) {
     }
     return row;
 }
+
 async function loadState() {
     const res = await fetch("/api/state?server=" + encodeURIComponent(currentServerId));
     if (res.status === 401) { window.location.href = "/"; return; }
@@ -248,11 +251,12 @@ async function loadState() {
     const addSrv = document.createElement("div");
     addSrv.className = "srv-icon add-srv";
     addSrv.textContent = "+";
-    addSrv.onclick = async () => {
-        const name = prompt("New server name:");
-        if (!name) return;
-        const r = await postJson("/api/servers/create", { name });
-        if (r.ok) { const d = await r.json(); switchServer(d.id); }
+    addSrv.title = "Create or Join Server";
+    addSrv.onclick = () => {
+        document.getElementById("create_srv_name").value = "";
+        document.getElementById("join_srv_code").value = "";
+        document.getElementById("add_srv_msg").textContent = "";
+        document.getElementById("add_srv_modal").style.display = "flex";
     };
     rail.appendChild(addSrv);
 
@@ -277,19 +281,19 @@ async function loadState() {
     const offList = document.getElementById("offline_list");
     dmList.innerHTML = ""; onList.innerHTML = ""; offList.innerHTML = "";
 
+    for (const u of (data.all_users || [])) {
+        const dm = document.createElement("div");
+        dm.className = "nav-item" + (activeType === "dm" && activeTarget === u.username ? " active" : "");
+        const dot = document.createElement("span");
+        dot.className = "status-dot" + (u.online ? " online" : "");
+        dm.appendChild(dot);
+        dm.appendChild(document.createTextNode(u.username));
+        dm.onclick = () => switchChat("dm", u.username);
+        dmList.appendChild(dm);
+    }
+
     let onCount = 0, offCount = 0;
     for (const m of data.members) {
-        if (m.username !== currentUsername) {
-            const dm = document.createElement("div");
-            dm.className = "nav-item" + (activeType === "dm" && activeTarget === m.username ? " active" : "");
-            const dot = document.createElement("span");
-            dot.className = "status-dot" + (m.online ? " online" : "");
-            dm.appendChild(dot);
-            dm.appendChild(document.createTextNode(m.username));
-            dm.onclick = () => switchChat("dm", m.username);
-            dmList.appendChild(dm);
-        }
-
         const row = buildMemberRow(m, srv);
         if (m.online) { onList.appendChild(row); onCount++; }
         else { offList.appendChild(row); offCount++; }
@@ -300,7 +304,6 @@ async function loadState() {
     const meAv = document.getElementById("me_av");
     meAv.style.background = getAvatarColor(currentUsername);
     meAv.textContent = currentUsername.charAt(0).toUpperCase();
-
 
     loadMessages();
 }
@@ -364,8 +367,22 @@ async function loadMessages() {
         txt.className = "msg-text";
         txt.textContent = msg.text;
         body.appendChild(txt);
-
         row.appendChild(body);
+
+        // Hover Delete Button (Author, Server Admin/Owner, or Site Admin)
+        const canDel = msg.id && (msg.from === currentUsername || isSiteAdmin || (activeType === "channel" && cachedServer && cachedServer.can_manage));
+        if (canDel) {
+            const delBtn = document.createElement("button");
+            delBtn.className = "msg-del-btn";
+            delBtn.textContent = "🗑️";
+            delBtn.title = "Delete Message";
+            delBtn.onclick = async () => {
+                await postJson("/api/messages/delete", { id: msg.id });
+                loadMessages();
+            };
+            row.appendChild(delBtn);
+        }
+
         box.appendChild(row);
     }
     box.scrollTop = box.scrollHeight;
@@ -388,6 +405,28 @@ document.getElementById("add_channel_btn").addEventListener("click", async () =>
     if (name) { await postJson("/api/channels/add", { server: currentServerId, name }); loadState(); }
 });
 
+// Create & Join Private Server Handlers
+document.getElementById("create_srv_submit").addEventListener("click", async () => {
+    const name = document.getElementById("create_srv_name").value.trim();
+    if (!name) return;
+    const r = await postJson("/api/servers/create", { name });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById("add_srv_msg").textContent = d.error; return; }
+    closeModals();
+    switchServer(d.id);
+});
+
+document.getElementById("join_srv_submit").addEventListener("click", async () => {
+    const invite = document.getElementById("join_srv_code").value.trim();
+    if (!invite) return;
+    const r = await postJson("/api/servers/join", { invite });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById("add_srv_msg").textContent = d.error; return; }
+    closeModals();
+    switchServer(d.id);
+});
+
+// User Settings Handlers
 document.getElementById("user_settings_btn").addEventListener("click", () => {
     const me = cachedMembers.find(u => u.username === currentUsername);
     document.getElementById("set_status").value = (me && me.status) || "";
@@ -411,6 +450,7 @@ document.getElementById("save_user_settings").addEventListener("click", async ()
     loadState();
 });
 
+// Server Settings Handlers
 document.getElementById("srv_settings_btn").addEventListener("click", () => {
     switchSrvTab("profile");
     renderServerModal();

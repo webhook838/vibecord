@@ -96,3 +96,19 @@ body { margin: 0; height: 100vh; display: flex; background: #111214; color: #f2f
 .chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { background: #0b0c0e; border: 1px solid #232428; padding: 6px 10px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .chip button { background: none; border: none; color: #fa777c; cursor: pointer; font-weight: 700; }
+
+/* Add/Join Server Modal */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 90; }
+.modal-box { background: #1a1b1e; border: 1px solid #26272b; padding: 22px; border-radius: 10px; width: 92%; max-width: 380px; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #26272b; padding-bottom: 8px; }
+.modal-head h3 { margin: 0; font-size: 16px; }
+.close-btn { background: none; border: none; color: #80848e; font-size: 17px; cursor: pointer; }
+.modal-box label { display: block; font-size: 11px; font-weight: 700; color: #b5bac1; text-transform: uppercase; margin: 14px 0 6px; }
+.modal-box input[type="text"] { width: 100%; background: #0b0c0e; border: 1px solid #26272b; color: #f2f3f5; padding: 9px; border-radius: 5px; font-size: 14px; }
+
+/* Hover Message Delete Button */
+.msg-row { position: relative; padding: 4px 6px; border-radius: 6px; }
+.msg-row:hover { background: #18191c; }
+.msg-del-btn { position: absolute; right: 8px; top: 4px; background: #1a1b1e; border: 1px solid #26272b; color: #fa777c; font-size: 12px; padding: 3px 6px; border-radius: 4px; cursor: pointer; display: none; }
+.msg-row:hover .msg-del-btn { display: block; }
+.msg-del-btn:hover { background: #da373c; color: white; }

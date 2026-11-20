@@ -41,8 +41,35 @@
       ],
       "roles": {},
       "member_roles": {}
+    },
+    "3e00242c": {
+      "name": "Uh",
+      "owner": "admin",
+      "admins": [],
+      "members": [
+        "admin"
+      ],
+      "invite": "2DC9F8",
+      "channels": [
+        "general"
+      ],
+      "roles": {},
+      "member_roles": {}
+    },
+    "7a7538b2": {
+      "name": "VibeCord Development Team",
+      "owner": "admin",
+      "admins": [],
+      "members": [
+        "admin"
+      ],
+      "invite": "B01FDE",
+      "channels": [
+        "general"
+      ],
+      "roles": {},
+      "member_roles": {}
     }
   },
-  "messages": [
-  ]
+  "messages": []
 }

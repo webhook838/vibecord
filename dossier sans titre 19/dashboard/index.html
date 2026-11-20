@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DisJS</title>
+    <link rel="stylesheet" href="/dashboard/dash.css">
+</head>
+<body>
+    <!-- Far-Left Server Rail -->
+    <div class="server-rail" id="server_rail"></div>
+
+    <!-- Channels / DMs Sidebar -->
+    <div class="sidebar-left">
+        <div class="server-header">
+            <span id="server_title">DisJS Hub</span>
+            <button id="srv_settings_btn" class="gear-btn" style="display:none;" title="Server Settings">⚙️</button>
+        </div>
+        <div class="sidebar-scroll">
+            <div id="channel_section">
+                <div class="section-title">
+                    <span>Text Channels</span>
+                    <button id="add_channel_btn" style="display:none;" title="Create Channel">+</button>
+                </div>
+                <div id="channel_list"></div>
+            </div>
+            <div id="dm_section" style="display:none;">
+                <div class="section-title"><span>Direct Messages</span></div>
+                <div id="dm_list"></div>
+            </div>
+        </div>
+        <div class="user-bar">
+            <div class="user-me">
+                <div class="mini-av" id="me_av">A</div>
+                <span id="me_label">...</span>
+            </div>
+            <div>
+                <button id="user_settings_btn" class="gear-btn" title="User Settings">⚙️</button>
+                <a href="/logout" class="logout-btn">Exit</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center Chat -->
+    <div class="chat-main">
+        <div class="chat-header" id="chat_header"># general</div>
+        <div class="messages" id="chat_messages"></div>
+        <div class="chat-input-wrap">
+            <div class="chat-input-box">
+                <input type="text" id="chat_input" placeholder="Message #general">
+                <button id="chat_send">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar: Online & Offline Members -->
+    <div class="sidebar-right">
+        <div class="section-title" id="online_header">ONLINE — 0</div>
+        <div id="online_list"></div>
+        <div class="section-title" id="offline_header" style="margin-top:16px;">OFFLINE — 0</div>
+        <div id="offline_list"></div>
+    </div>
+
+    <!-- Full-Screen User Settings -->
+    <div id="user_modal" class="fs-settings" style="display:none;">
+        <div class="fs-nav">
+            <div class="fs-cat">User Settings</div>
+            <div class="fs-tab active">My Account</div>
+        </div>
+        <div class="fs-content">
+            <h2>My Account</h2>
+            <label>Custom Status</label>
+            <input type="text" id="set_status" placeholder="e.g., Geometry Dash">
+            <label>Avatar Color</label>
+            <input type="color" id="set_color" value="#5865f2">
+            <label>Change Password</label>
+            <input type="password" id="set_old_pass" placeholder="Current password">
+            <input type="password" id="set_new_pass" placeholder="New password">
+            <p id="user_set_msg" class="modal-msg"></p>
+            <button id="save_user_settings" class="primary-btn">Save Changes</button>
+        </div>
+        <div class="fs-esc" onclick="closeModals()"><div class="esc-circle">✕</div><span>ESC</span></div>
+    </div>
+
+    <!-- Full-Screen Server Settings (Like Screenshot 1 & 2) -->
+    <div id="srv_modal" class="fs-settings" style="display:none;">
+        <div class="fs-nav">
+            <div class="fs-cat" id="fs_srv_cat">SERVER</div>
+            <div class="fs-tab active" data-tab="profile" onclick="switchSrvTab('profile')">Server Profile</div>
+            <div class="fs-tab" data-tab="roles" onclick="switchSrvTab('roles')">Roles</div>
+            <div class="fs-tab" data-tab="channels" onclick="switchSrvTab('channels')">Channels</div>
+            <div class="fs-divider"></div>
+            <div class="fs-tab danger" id="delete_srv_btn">Delete Server 🗑️</div>
+        </div>
+        <div class="fs-content">
+            <div id="tab_profile" class="srv-tab-pane">
+                <h2>Server Profile</h2>
+                <div class="profile-grid">
+                    <div>
+                        <label>Name</label>
+                        <input type="text" id="set_srv_name">
+                        <label>Banner</label>
+                        <div class="banner-swatches" id="banner_swatches"></div>
+                        <button id="save_srv_profile" class="primary-btn" style="margin-top:16px;">Save Changes</button>
+                    </div>
+                    <div class="preview-card">
+                        <div class="preview-banner" id="preview_banner"></div>
+                        <div class="preview-body">
+                            <div class="preview-icon" id="preview_icon">DI</div>
+                            <div class="preview-title" id="preview_title">DisJS Hub</div>
+                            <div class="preview-stats" id="preview_stats">● 1 Online • 2 Members</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="tab_roles" class="srv-tab-pane" style="display:none;">
+                <h2>Roles</h2>
+                <div class="inline-row">
+                    <input type="text" id="new_role_name" placeholder="Role name">
+                    <input type="color" id="new_role_color" value="#f0b232">
+                    <button id="create_role_btn" class="primary-btn">Create Role</button>
+                </div>
+                <div id="manage_roles_list" class="chip-list" style="margin-top:14px;"></div>
+            </div>
+            <div id="tab_channels" class="srv-tab-pane" style="display:none;">
+                <h2>Text Channels</h2>
+                <div id="manage_channels_list" class="chip-list"></div>
+            </div>
+        </div>
+        <div class="fs-esc" onclick="closeModals()"><div class="esc-circle">✕</div><span>ESC</span></div>
+    </div>
+
+    <script src="/dashboard/dash.js"></script>
+</body>
+</html>

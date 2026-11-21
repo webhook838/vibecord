@@ -139,7 +139,7 @@ class AuthHandler(SimpleHTTPRequestHandler):
             if not me:
                 self.send_json(401, {"error": "Unauthorized"})
                 return
-            srv_id = qs.get("server", ["hub"])
+            srv_id = qs.get("server", ["hub"])[0]
             if srv_id not in SERVERS or not self.is_server_member(srv_id, me):
                 srv_id = "hub"
             srv = SERVERS[srv_id]

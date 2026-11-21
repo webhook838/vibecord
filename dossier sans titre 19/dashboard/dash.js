@@ -1,7 +1,7 @@
 let currentUsername = "";
 let isSiteAdmin = false;
 let currentServerId = "hub";
-let inHomeView = false; // True when clicking the top-left Discord DM Home icon
+let inHomeView = false;
 let activeType = "channel";
 let activeTarget = "general";
 let cachedMembers = [];
@@ -12,6 +12,35 @@ const BANNER_COLORS = [
     "#18191c", "#ec4899", "#ef4444", "#f97316", "#eab308",
     "#8b5cf6", "#3b82f6", "#14b8a6", "#22c55e", "#4b5563"
 ];
+
+function askUser({ title, desc = "", placeholder = "", confirmOnly = false, danger = false }) {
+    return new Promise(resolve => {
+        const modal = document.getElementById("ask_modal");
+        const input = document.getElementById("ask_input");
+        const okBtn = document.getElementById("ask_ok");
+        document.getElementById("ask_title").textContent = title;
+        document.getElementById("ask_desc").textContent = desc;
+        document.getElementById("ask_desc").style.display = desc ? "block" : "none";
+        input.style.display = confirmOnly ? "none" : "block";
+        input.placeholder = placeholder;
+        input.value = "";
+        okBtn.style.background = danger ? "#da373c" : "#5865f2";
+        modal.style.display = "flex";
+        if (!confirmOnly) input.focus();
+
+        const finish = val => {
+            modal.style.display = "none";
+            resolve(val);
+        };
+        okBtn.onclick = () => finish(confirmOnly ? true : input.value.trim());
+        document.getElementById("ask_cancel").onclick = () => finish(null);
+        document.getElementById("ask_close").onclick = () => finish(null);
+        input.onkeydown = e => {
+            if (e.key === "Enter") finish(input.value.trim());
+            if (e.key === "Escape") finish(null);
+        };
+    });
+}
 
 function getAvatarColor(name) {
     const member = cachedMembers.find(u => u.username === name);
@@ -25,6 +54,8 @@ function getAvatarColor(name) {
 function closeModals() {
     document.getElementById("user_modal").style.display = "none";
     document.getElementById("srv_modal").style.display = "none";
+    document.getElementById("add_srv_modal").style.display = "none";
+    document.getElementById("ask_modal").style.display = "none";
 }
 
 document.addEventListener("keydown", e => {
@@ -82,6 +113,7 @@ function renderServerModal() {
     if (!cachedServer) return;
     document.getElementById("fs_srv_cat").textContent = cachedServer.name;
     document.getElementById("set_srv_name").value = cachedServer.name;
+    document.getElementById("srv_invite_code").value = cachedServer.invite || "PUBLIC";
     selectedBanner = cachedServer.banner || "#18191c";
 
     const updatePreview = () => {
@@ -158,7 +190,7 @@ function buildMemberRow(m, srv) {
 
     const nameSpan = document.createElement("span");
     nameSpan.textContent = m.username + (m.is_owner ? " 👑" : "");
-    if (m.roles.length > 0) nameSpan.style.color = m.roles[0].color;
+    if (m.roles.length > 0) nameSpan.style.color = m.roles.color;
     else if (!m.online) nameSpan.style.color = "#80848e";
     info.appendChild(nameSpan);
 
@@ -187,7 +219,11 @@ function buildMemberRow(m, srv) {
         if (srv.can_manage && Object.keys(srv.roles).length > 0) {
             const rb = document.createElement("button"); rb.textContent = "+Role";
             rb.onclick = async () => {
-                const rn = prompt("Toggle role (" + Object.keys(srv.roles).join(", ") + "):");
+                const rn = await askUser({
+                    title: "Toggle Role for " + m.username,
+                    desc: "Available roles: " + Object.keys(srv.roles).join(", "),
+                    placeholder: "Role name"
+                });
                 if (rn) { await postJson("/api/roles/toggle", { server: srv.id, username: m.username, role: rn }); loadState(); }
             };
             actions.appendChild(rb);
@@ -200,12 +236,24 @@ function buildMemberRow(m, srv) {
         if (isSiteAdmin && m.username !== currentUsername) {
             const pb = document.createElement("button"); pb.textContent = "Key";
             pb.onclick = async () => {
-                const p = prompt("New password for " + m.username + ":");
+                const p = await askUser({
+                    title: "Reset Password",
+                    desc: "Enter a new password for " + m.username + ":",
+                    placeholder: "New password"
+                });
                 if (p) await postJson("/api/users/password", { username: m.username, password: p });
             };
             actions.appendChild(pb);
             const db = document.createElement("button"); db.className = "del"; db.textContent = "X";
-            db.onclick = async () => { await postJson("/api/users/delete", { username: m.username }); loadState(); };
+            db.onclick = async () => {
+                const ok = await askUser({
+                    title: "Delete User",
+                    desc: "Permanently delete account '" + m.username + "'?",
+                    confirmOnly: true,
+                    danger: true
+                });
+                if (ok) { await postJson("/api/users/delete", { username: m.username }); loadState(); }
+            };
             actions.appendChild(db);
         }
         if (actions.children.length > 0) row.appendChild(actions);
@@ -248,11 +296,12 @@ async function loadState() {
     const addSrv = document.createElement("div");
     addSrv.className = "srv-icon add-srv";
     addSrv.textContent = "+";
-    addSrv.onclick = async () => {
-        const name = prompt("New server name:");
-        if (!name) return;
-        const r = await postJson("/api/servers/create", { name });
-        if (r.ok) { const d = await r.json(); switchServer(d.id); }
+    addSrv.title = "Create or Join Server";
+    addSrv.onclick = () => {
+        document.getElementById("create_srv_name").value = "";
+        document.getElementById("join_srv_code").value = "";
+        document.getElementById("add_srv_msg").textContent = "";
+        document.getElementById("add_srv_modal").style.display = "flex";
     };
     rail.appendChild(addSrv);
 
@@ -277,19 +326,19 @@ async function loadState() {
     const offList = document.getElementById("offline_list");
     dmList.innerHTML = ""; onList.innerHTML = ""; offList.innerHTML = "";
 
+    for (const u of (data.all_users || [])) {
+        const dm = document.createElement("div");
+        dm.className = "nav-item" + (activeType === "dm" && activeTarget === u.username ? " active" : "");
+        const dot = document.createElement("span");
+        dot.className = "status-dot" + (u.online ? " online" : "");
+        dm.appendChild(dot);
+        dm.appendChild(document.createTextNode(u.username));
+        dm.onclick = () => switchChat("dm", u.username);
+        dmList.appendChild(dm);
+    }
+
     let onCount = 0, offCount = 0;
     for (const m of data.members) {
-        if (m.username !== currentUsername) {
-            const dm = document.createElement("div");
-            dm.className = "nav-item" + (activeType === "dm" && activeTarget === m.username ? " active" : "");
-            const dot = document.createElement("span");
-            dot.className = "status-dot" + (m.online ? " online" : "");
-            dm.appendChild(dot);
-            dm.appendChild(document.createTextNode(m.username));
-            dm.onclick = () => switchChat("dm", m.username);
-            dmList.appendChild(dm);
-        }
-
         const row = buildMemberRow(m, srv);
         if (m.online) { onList.appendChild(row); onCount++; }
         else { offList.appendChild(row); offCount++; }
@@ -300,7 +349,6 @@ async function loadState() {
     const meAv = document.getElementById("me_av");
     meAv.style.background = getAvatarColor(currentUsername);
     meAv.textContent = currentUsername.charAt(0).toUpperCase();
-
 
     loadMessages();
 }
@@ -364,8 +412,21 @@ async function loadMessages() {
         txt.className = "msg-text";
         txt.textContent = msg.text;
         body.appendChild(txt);
-
         row.appendChild(body);
+
+        const canDel = msg.id && (msg.from === currentUsername || isSiteAdmin || (activeType === "channel" && cachedServer && cachedServer.can_manage));
+        if (canDel) {
+            const delBtn = document.createElement("button");
+            delBtn.className = "msg-del-btn";
+            delBtn.textContent = "🗑️";
+            delBtn.title = "Delete Message";
+            delBtn.onclick = async () => {
+                await postJson("/api/messages/delete", { id: msg.id });
+                loadMessages();
+            };
+            row.appendChild(delBtn);
+        }
+
         box.appendChild(row);
     }
     box.scrollTop = box.scrollHeight;
@@ -384,8 +445,28 @@ document.getElementById("chat_send").addEventListener("click", sendMessage);
 document.getElementById("chat_input").addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
 
 document.getElementById("add_channel_btn").addEventListener("click", async () => {
-    const name = prompt("New channel name:");
+    const name = await askUser({ title: "Create Text Channel", placeholder: "e.g., announcements" });
     if (name) { await postJson("/api/channels/add", { server: currentServerId, name }); loadState(); }
+});
+
+document.getElementById("create_srv_submit").addEventListener("click", async () => {
+    const name = document.getElementById("create_srv_name").value.trim();
+    if (!name) return;
+    const r = await postJson("/api/servers/create", { name });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById("add_srv_msg").textContent = d.error; return; }
+    closeModals();
+    switchServer(d.id);
+});
+
+document.getElementById("join_srv_submit").addEventListener("click", async () => {
+    const invite = document.getElementById("join_srv_code").value.trim();
+    if (!invite) return;
+    const r = await postJson("/api/servers/join", { invite });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById("add_srv_msg").textContent = d.error; return; }
+    closeModals();
+    switchServer(d.id);
 });
 
 document.getElementById("user_settings_btn").addEventListener("click", () => {
@@ -438,7 +519,13 @@ document.getElementById("create_role_btn").addEventListener("click", async () =>
 });
 
 document.getElementById("delete_srv_btn").addEventListener("click", async () => {
-    if (!confirm("Delete this entire server?")) return;
+    const ok = await askUser({
+        title: "Delete Server",
+        desc: "Are you sure you want to permanently delete this entire server?",
+        confirmOnly: true,
+        danger: true
+    });
+    if (!ok) return;
     await postJson("/api/servers/delete", { server: currentServerId });
     closeModals();
     switchServer("hub");

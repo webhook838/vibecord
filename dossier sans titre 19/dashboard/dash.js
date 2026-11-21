@@ -1,9 +1,120 @@
+let currentUsername = "";
+let isSiteAdmin = false;
+let currentServerId = "hub";
+let inHomeView = false;
+let activeType = "channel";
+let activeTarget = "general";
+let cachedMembers = [];
+let cachedServer = null;
+let selectedBanner = "#18191c";
+
+const BANNER_COLORS = [
+    "#18191c", "#ec4899", "#ef4444", "#f97316", "#eab308",
+    "#8b5cf6", "#3b82f6", "#14b8a6", "#22c55e", "#4b5563"
+];
+
 const ROLE_PERMS = [
     { key: "manage_channels", label: "Manage Channels" },
     { key: "manage_roles", label: "Manage Roles" },
     { key: "delete_messages", label: "Delete Messages" }
 ];
 
+function askUser({ title, desc = "", placeholder = "", confirmOnly = false, danger = false }) {
+    return new Promise(resolve => {
+        const modal = document.getElementById("ask_modal");
+        const input = document.getElementById("ask_input");
+        const okBtn = document.getElementById("ask_ok");
+        document.getElementById("ask_title").textContent = title;
+        document.getElementById("ask_desc").textContent = desc;
+        document.getElementById("ask_desc").style.display = desc ? "block" : "none";
+        input.style.display = confirmOnly ? "none" : "block";
+        input.placeholder = placeholder;
+        input.value = "";
+        okBtn.style.background = danger ? "#da373c" : "#5865f2";
+        modal.style.display = "flex";
+        if (!confirmOnly) input.focus();
+
+        const finish = val => {
+            modal.style.display = "none";
+            resolve(val);
+        };
+        okBtn.onclick = () => finish(confirmOnly ? true : input.value.trim());
+        document.getElementById("ask_cancel").onclick = () => finish(null);
+        document.getElementById("ask_close").onclick = () => finish(null);
+        input.onkeydown = e => {
+            if (e.key === "Enter") finish(input.value.trim());
+            if (e.key === "Escape") finish(null);
+        };
+    });
+}
+
+function getAvatarColor(name) {
+    const member = cachedMembers.find(u => u.username === name);
+    if (member && member.color) return member.color;
+    const colors = ["#5865f2", "#23a55a", "#f0b232", "#da373c", "#a855f7", "#ec4899"];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+}
+
+function closeModals() {
+    document.getElementById("user_modal").style.display = "none";
+    document.getElementById("srv_modal").style.display = "none";
+    document.getElementById("add_srv_modal").style.display = "none";
+    document.getElementById("ask_modal").style.display = "none";
+}
+
+document.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeModals();
+});
+
+function switchSrvTab(tabName) {
+    document.querySelectorAll(".fs-tab[data-tab]").forEach(t => {
+        t.classList.toggle("active", t.dataset.tab === tabName);
+    });
+    document.querySelectorAll(".srv-tab-pane").forEach(p => {
+        p.style.display = (p.id === "tab_" + tabName) ? "block" : "none";
+    });
+}
+
+function openHomeDMs() {
+    inHomeView = true;
+    const other = cachedMembers.find(m => m.username !== currentUsername);
+    activeType = "dm";
+    activeTarget = other ? other.username : currentUsername;
+    document.getElementById("chat_header").textContent = "@ " + activeTarget;
+    document.getElementById("chat_input").placeholder = "Message @" + activeTarget;
+    loadState();
+}
+
+function switchServer(srvId) {
+    inHomeView = false;
+    currentServerId = srvId;
+    activeType = "channel";
+    activeTarget = "general";
+    document.getElementById("chat_header").textContent = "# general";
+    document.getElementById("chat_input").placeholder = "Message #general";
+    loadState();
+}
+
+function switchChat(type, target) {
+    activeType = type;
+    activeTarget = target;
+    const prefix = type === "channel" ? "# " : "@ ";
+    document.getElementById("chat_header").textContent = prefix + target;
+    document.getElementById("chat_input").placeholder = "Message " + prefix + target;
+    loadState();
+}
+
+async function postJson(url, body) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+    if (res.status === 401) window.location.href = "/";
+    return res;
+}
 function renderServerModal() {
     if (!cachedServer) return;
     document.getElementById("fs_srv_cat").textContent = cachedServer.name;
@@ -278,3 +389,195 @@ async function loadState() {
 
     loadMessages();
 }
+async function loadMessages() {
+    const res = await fetch("/api/messages");
+    if (res.status === 401) { window.location.href = "/"; return; }
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const box = document.getElementById("chat_messages");
+    box.innerHTML = "";
+    const filtered = data.messages.filter(m =>
+        activeType === "channel"
+            ? (m.type === "channel" && (m.server || "hub") === currentServerId && m.to === activeTarget)
+            : (m.type === "dm" && ((m.from === currentUsername && m.to === activeTarget) || (m.from === activeTarget && m.to === currentUsername)))
+    );
+
+    for (const msg of filtered) {
+        const row = document.createElement("div");
+        row.className = "msg-row";
+
+        const av = document.createElement("div");
+        av.className = "avatar";
+        av.style.background = getAvatarColor(msg.from);
+        av.textContent = msg.from.charAt(0).toUpperCase();
+        row.appendChild(av);
+
+        const body = document.createElement("div");
+        const meta = document.createElement("div");
+        meta.className = "msg-meta";
+
+        const sender = cachedMembers.find(u => u.username === msg.from);
+        const author = document.createElement("span");
+        author.className = "msg-author";
+        author.textContent = msg.from;
+        if (sender && sender.roles.length > 0) author.style.color = sender.roles.color;
+        meta.appendChild(author);
+
+        if (sender) {
+            if (sender.is_site_admin) {
+                const b = document.createElement("span"); b.className = "badge"; b.textContent = "ADMIN"; meta.appendChild(b);
+            } else if (sender.is_owner) {
+                const b = document.createElement("span"); b.className = "badge"; b.style.background = "#f0b232"; b.textContent = "OWNER"; meta.appendChild(b);
+            } else if (sender.is_srv_admin) {
+                const b = document.createElement("span"); b.className = "badge"; b.style.background = "#23a55a"; b.textContent = "MOD"; meta.appendChild(b);
+            }
+            for (const r of sender.roles) {
+                const pill = document.createElement("span");
+                pill.className = "role-pill"; pill.style.color = r.color; pill.style.borderColor = r.color;
+                pill.textContent = r.name; meta.appendChild(pill);
+            }
+        }
+
+        const time = document.createElement("span");
+        time.className = "msg-time";
+        time.textContent = msg.time || "";
+        meta.appendChild(time);
+        body.appendChild(meta);
+
+        const txt = document.createElement("div");
+        txt.className = "msg-text";
+        txt.textContent = msg.text;
+        body.appendChild(txt);
+        row.appendChild(body);
+
+        const canDel = msg.id && (msg.from === currentUsername || isSiteAdmin || (activeType === "channel" && cachedServer && cachedServer.can_delete_messages));
+        if (canDel) {
+            const delBtn = document.createElement("button");
+            delBtn.className = "msg-del-btn";
+            delBtn.textContent = "🗑️";
+            delBtn.title = "Delete Message";
+            delBtn.onclick = async () => {
+                await postJson("/api/messages/delete", { id: msg.id });
+                loadMessages();
+            };
+            row.appendChild(delBtn);
+        }
+
+        box.appendChild(row);
+    }
+    box.scrollTop = box.scrollHeight;
+}
+
+async function sendMessage() {
+    const input = document.getElementById("chat_input");
+    const text = input.value.trim();
+    if (!text) return;
+    await postJson("/api/messages", { type: activeType, server: currentServerId, to: activeTarget, text });
+    input.value = "";
+    loadMessages();
+}
+
+document.getElementById("chat_send").addEventListener("click", sendMessage);
+document.getElementById("chat_input").addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
+
+document.getElementById("add_channel_btn").addEventListener("click", async () => {
+    const name = await askUser({ title: "Create Text Channel", placeholder: "e.g., announcements" });
+    if (name) { await postJson("/api/channels/add", { server: currentServerId, name }); loadState(); }
+});
+
+document.getElementById("create_srv_submit").addEventListener("click", async () => {
+    const name = document.getElementById("create_srv_name").value.trim();
+    if (!name) return;
+    const r = await postJson("/api/servers/create", { name });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById("add_srv_msg").textContent = d.error; return; }
+    closeModals();
+    switchServer(d.id);
+});
+
+document.getElementById("join_srv_submit").addEventListener("click", async () => {
+    const invite = document.getElementById("join_srv_code").value.trim();
+    if (!invite) return;
+    const r = await postJson("/api/servers/join", { invite });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById("add_srv_msg").textContent = d.error; return; }
+    closeModals();
+    switchServer(d.id);
+});
+
+document.getElementById("user_settings_btn").addEventListener("click", () => {
+    const me = cachedMembers.find(u => u.username === currentUsername);
+    document.getElementById("set_status").value = (me && me.status) || "";
+    document.getElementById("set_color").value = getAvatarColor(currentUsername);
+    document.getElementById("set_old_pass").value = "";
+    document.getElementById("set_new_pass").value = "";
+    document.getElementById("user_set_msg").textContent = "";
+    document.getElementById("user_modal").style.display = "flex";
+});
+
+document.getElementById("save_user_settings").addEventListener("click", async () => {
+    const r = await postJson("/api/me/settings", {
+        status: document.getElementById("set_status").value,
+        color: document.getElementById("set_color").value,
+        old_password: document.getElementById("set_old_pass").value,
+        new_password: document.getElementById("set_new_pass").value
+    });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById("user_set_msg").textContent = d.error; return; }
+    closeModals();
+    loadState();
+});
+
+document.getElementById("srv_settings_btn").addEventListener("click", () => {
+    switchSrvTab("profile");
+    renderServerModal();
+    document.getElementById("srv_modal").style.display = "flex";
+});
+
+document.getElementById("save_srv_profile").addEventListener("click", async () => {
+    await postJson("/api/servers/rename", {
+        server: currentServerId,
+        name: document.getElementById("set_srv_name").value,
+        banner: selectedBanner
+    });
+    await loadState();
+    renderServerModal();
+});
+
+document.getElementById("create_role_btn").addEventListener("click", async () => {
+    const name = document.getElementById("new_role_name").value;
+    const color = document.getElementById("new_role_color").value;
+    if (!name) return;
+    await postJson("/api/roles/create", { server: currentServerId, name, color });
+    document.getElementById("new_role_name").value = "";
+    await loadState();
+    renderServerModal();
+});
+
+document.getElementById("delete_srv_btn").addEventListener("click", async () => {
+    const ok = await askUser({
+        title: "Delete Server",
+        desc: "Are you sure you want to permanently delete this entire server?",
+        confirmOnly: true,
+        danger: true
+    });
+    if (!ok) return;
+    await postJson("/api/servers/delete", { server: currentServerId });
+    closeModals();
+    switchServer("hub");
+});
+
+async function init() {
+    const res = await fetch("/api/me");
+    if (!res.ok) { window.location.href = "/"; return; }
+    const data = await res.json();
+    currentUsername = data.username;
+    isSiteAdmin = data.is_site_admin;
+    document.title = "DisJS - " + currentUsername;
+    document.getElementById("me_label").textContent = currentUsername;
+    await loadState();
+    setInterval(loadState, 2000);
+}
+
+init();

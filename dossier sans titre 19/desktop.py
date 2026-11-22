@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import certifi
 import webview
 
-TARGET = "https://onrender.com"
+TARGET = "https://vibecord-1.onrender.com"
 SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 
 class Bridge(BaseHTTPRequestHandler):

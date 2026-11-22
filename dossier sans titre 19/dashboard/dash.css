@@ -16,7 +16,11 @@ body { margin: 0; height: 100vh; display: flex; background: #111214; color: #f2f
 .section-title { font-size: 11px; font-weight: 700; color: #80848e; text-transform: uppercase; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center; }
 .section-title button, .gear-btn { background: none; border: none; color: #949ba4; font-size: 15px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
 .section-title button:hover, .gear-btn:hover { background: #1e1f22; color: white; }
-.nav-item { padding: 7px 10px; border-radius: 5px; color: #80848e; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.nav-item {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .nav-item:hover { background: #18191c; color: #dbdee1; }
 .nav-item.active { background: #232428; color: #ffffff; font-weight: 600; }
 
@@ -46,18 +50,40 @@ body { margin: 0; height: 100vh; display: flex; background: #111214; color: #f2f
 
 /* Right Member List */
 .sidebar-right { width: 245px; background: #0b0c0e; border-left: 1px solid #18191c; padding: 14px 10px; overflow-y: auto; }
-.member-row { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; border-radius: 5px; font-size: 13px; }
+.member-row {
+    padding: 8px 6px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
 .member-row:hover { background: #18191c; }
 .member-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .member-status { font-size: 11px; color: #80848e; margin-left: 15px; }
 .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #4e5058; flex-shrink: 0; }
 .status-dot.online { background: #23a55a; }
-.admin-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; margin-left: 15px; }
-.admin-actions button { background: #232428; border: none; color: #dbdee1; font-size: 10px; padding: 2px 6px; border-radius: 3px; cursor: pointer; }
+.admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+}
+.admin-actions button {
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 4px;
+    cursor: pointer;
+}
 .admin-actions button.del { background: #da373c; color: white; }
 
 /* Full-Screen Discord Settings (Screenshots 1 & 2) */
-.fs-settings { position: fixed; inset: 0; background: #111214; display: flex; z-index: 100; }
+.fs-settings {
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #121316;
+    display: flex;
+    z-index: 100;
+}
 .fs-nav { width: 240px; background: #0b0c0e; padding: 50px 16px; display: flex; flex-direction: column; align-items: flex-end; border-right: 1px solid #18191c; }
 .fs-cat, .fs-tab, .fs-divider { width: 180px; }
 .fs-cat { font-size: 11px; font-weight: 700; color: #80848e; text-transform: uppercase; padding: 6px 10px; }
@@ -98,7 +124,18 @@ body { margin: 0; height: 100vh; display: flex; background: #111214; color: #f2f
 .chip button { background: none; border: none; color: #fa777c; cursor: pointer; font-weight: 700; }
 
 /* Add/Join Server Modal */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 90; }
+
+.modal-backdrop {
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 250;
+}
 .modal-box { background: #1a1b1e; border: 1px solid #26272b; padding: 22px; border-radius: 10px; width: 92%; max-width: 380px; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #26272b; padding-bottom: 8px; }
 .modal-head h3 { margin: 0; font-size: 16px; }
@@ -112,3 +149,89 @@ body { margin: 0; height: 100vh; display: flex; background: #111214; color: #f2f
 .msg-del-btn { position: absolute; right: 8px; top: 4px; background: #1a1b1e; border: 1px solid #26272b; color: #fa777c; font-size: 12px; padding: 3px 6px; border-radius: 4px; cursor: pointer; display: none; }
 .msg-row:hover .msg-del-btn { display: block; }
 .msg-del-btn:hover { background: #da373c; color: white; }
+
+.role-perm-card {
+    background: #1a1b1e;
+    border: 1px solid #26272b;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+}
+.role-perm-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+.perm-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.perm-pill {
+    background: #0b0c0e;
+    border: 1px solid #26272b;
+    color: #80848e;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+.perm-pill.active {
+    background: rgba(88, 101, 242, 0.18);
+    border-color: #5865f2;
+    color: #f2f3f5;
+}
+/* Scratch-Style Bot Maker Blocks */
+.scratch-workspace {
+    background: #141518;
+    border: 1px solid #26272b;
+    border-radius: 10px;
+    padding: 16px;
+}
+.scratch-block {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+}
+.scratch-hat {
+    background: #d97706;
+    border-radius: 18px 18px 4px 4px;
+    border-bottom: 3px solid #92400e;
+}
+.scratch-stack {
+    background: #5865f2;
+    border-radius: 4px 4px 10px 10px;
+    margin-top: -2px;
+    border-top: 2px dashed rgba(255,255,255,0.25);
+}
+.scratch-block select,
+.scratch-block input[type="text"] {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 13px;
+    width: auto;
+    flex: 1;
+    min-width: 110px;
+}
+.bot-badge {
+    background: #5865f2;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 5px;
+    vertical-align: middle;
+}

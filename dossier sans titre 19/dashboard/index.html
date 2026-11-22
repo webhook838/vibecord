@@ -105,6 +105,7 @@
             <div class="fs-tab active" data-tab="profile" onclick="switchSrvTab('profile')">Server Profile</div>
             <div class="fs-tab" data-tab="roles" onclick="switchSrvTab('roles')">Roles</div>
             <div class="fs-tab" data-tab="channels" onclick="switchSrvTab('channels')">Channels</div>
+            <div class="fs-tab" data-tab="bots" onclick="switchSrvTab('bots')">Apps & Bots 🤖</div>
             <div class="fs-divider"></div>
             <div class="fs-tab danger" id="delete_srv_btn">Delete Server 🗑️</div>
         </div>
@@ -144,9 +145,56 @@
                 <h2>Text Channels</h2>
                 <div id="manage_channels_list" class="chip-list"></div>
             </div>
+            <div id="tab_bots" class="srv-tab-pane" style="display:none;">
+                <h2>Apps & Bots Maker</h2>
+                <p style="color:#80848e; font-size:13px; margin-bottom:14px;">
+                    Snap a yellow trigger block onto a purple action block to build a server bot!
+                </p>
+                <div class="scratch-workspace">
+                    <input type="text" id="bot_name" placeholder="Bot Name (e.g., VibeBot)" style="margin-bottom:12px;">
+                    <div class="scratch-block scratch-hat">
+                        <span>⚡ WHEN message</span>
+                        <select id="bot_trigger">
+                            <option value="equals">equals</option>
+                            <option value="starts">starts with</option>
+                            <option value="contains">contains</option>
+                        </select>
+                        <input type="text" id="bot_trigger_val" placeholder="!ping">
+                    </div>
+                    <div class="scratch-block scratch-stack">
+                        <span>▶️ DO</span>
+                        <select id="bot_action">
+                            <option value="reply">reply in channel</option>
+                            <option value="dm">send DM to user</option>
+                            <option value="delete">delete trigger message</option>
+                            <option value="role">give role to user</option>
+                        </select>
+                        <input type="text" id="bot_action_val" placeholder="Pong! {user} ({args})">
+                    </div>
+                    <button id="save_bot_btn" class="primary-btn" style="margin-top:12px;">+ Create Bot Block</button>
+                </div>
+                <div id="manage_bots_list" style="margin-top:18px;"></div>
+            </div>   
         </div>
         <div class="fs-esc" onclick="closeModals()"><div class="esc-circle">✕</div><span>ESC</span></div>
     </div>
+
+        <!-- Custom Input / Confirm Modal (Replaces browser prompt/confirm for Mac App) -->
+        <div id="ask_modal" class="modal-backdrop" style="display:none; z-index:200;">
+            <div class="modal-box">
+                <div class="modal-head">
+                    <h3 id="ask_title">Action</h3>
+                    <button class="close-btn" id="ask_close">✕</button>
+                </div>
+                <p id="ask_desc" style="color:#b5bac1; font-size:13px; margin:8px 0 12px;"></p>
+                <input type="text" id="ask_input" placeholder="">
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+                    <button id="ask_cancel" class="primary-btn" style="background:#2b2d31;">Cancel</button>
+                    <button id="ask_ok" class="primary-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    
 
     <script src="/dashboard/dash.js"></script>
 </body>

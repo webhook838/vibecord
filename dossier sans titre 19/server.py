@@ -83,6 +83,92 @@ class AuthHandler(SimpleHTTPRequestHandler):
             return False
         return self.is_server_owner(srv_id, user) or (user in srv["admins"])
 
+    def role_color(self, srv, r_name):
+        val = srv["roles"].get(r_name)
+        return val["color"] if isinstance(val, dict) else (val or "#5865f2")
+
+    def role_perms(self, srv, r_name):
+        val = srv["roles"].get(r_name)
+        return val.get("perms", []) if isinstance(val, dict) else []
+
+    def has_perm(self, srv_id, perm, user=None):
+        user = user or self.get_current_user()
+        srv = SERVERS.get(srv_id)
+        if not user or not srv:
+            return False
+        if self.is_server_admin(srv_id, user):
+            return True
+        for r_name in srv.get("member_roles", {}).get(user, []):
+            if perm in self.role_perms(srv, r_name):
+                return True
+        return False
+
+    def run_bots(self, srv_id, msg_obj):
+        srv = SERVERS.get(srv_id)
+        if not srv:
+            return
+        author = msg_obj["from"]
+        raw = msg_obj["text"]
+        low = raw.lower()
+
+        for bot in srv.get("bots", []):
+            trig = bot.get("trigger", "equals")
+            t_val = bot.get("trigger_val", "").strip()
+            if not t_val:
+                continue
+
+            matched = False
+            args = ""
+            if trig == "equals" and low == t_val.lower():
+                matched = True
+            elif trig == "starts" and low.startswith(t_val.lower()):
+                matched = True
+                args = raw[len(t_val):].strip()
+            elif trig == "contains" and t_val.lower() in low:
+                matched = True
+                args = raw
+
+            if not matched:
+                continue
+
+            act = bot.get("action", "reply")
+            a_val = bot.get("action_val", "")
+            filled = a_val.replace("{user}", author).replace("{args}", args)
+
+            if act == "reply" and filled.strip():
+                MESSAGES.append({
+                    "id": secrets.token_hex(6),
+                    "type": "channel",
+                    "server": srv_id,
+                    "from": bot["name"],
+                    "is_bot": True,
+                    "to": msg_obj["to"],
+                    "time": datetime.now().strftime("%H:%M"),
+                    "text": filled[:300]
+                })
+            elif act == "dm" and filled.strip():
+                MESSAGES.append({
+                    "id": secrets.token_hex(6),
+                    "type": "dm",
+                    "server": srv_id,
+                    "from": bot["name"],
+                    "is_bot": True,
+                    "to": author,
+                    "time": datetime.now().strftime("%H:%M"),
+                    "text": filled[:300]
+                })
+            elif act == "delete":
+                if msg_obj in MESSAGES:
+                    MESSAGES.remove(msg_obj)
+            elif act == "role":
+                r_name = a_val.strip()
+                if r_name in srv["roles"] and author in USERS:
+                    m_roles = srv["member_roles"].setdefault(author, [])
+                    if r_name not in m_roles:
+                        m_roles.append(r_name)
+
+
+
     def send_json(self, code, payload):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -129,7 +215,10 @@ class AuthHandler(SimpleHTTPRequestHandler):
                 if not self.is_server_member(srv_id, u):
                     continue
                 u_roles = srv["member_roles"].get(u, [])
-                role_objs = [{"name": r, "color": srv["roles"][r]} for r in u_roles if r in srv["roles"]]
+                role_objs = [
+                    {"name": r, "color": self.role_color(srv, r)}
+                    for r in u_roles if r in srv["roles"]
+                ]
                 members.append({
                     "username": u,
                     "is_site_admin": info["is_admin"],
@@ -141,6 +230,10 @@ class AuthHandler(SimpleHTTPRequestHandler):
                     "online": (now - LAST_SEEN.get(u, 0)) < 10
                 })
 
+            roles_out = {
+                r: {"color": self.role_color(srv, r), "perms": self.role_perms(srv, r)}
+                for r in srv["roles"]
+            }
             all_users = [
                 {"username": u, "online": (now - LAST_SEEN.get(u, 0)) < 10}
                 for u in USERS.keys() if u != me
@@ -152,20 +245,25 @@ class AuthHandler(SimpleHTTPRequestHandler):
             self.send_json(200, {
                 "servers": srv_list,
                 "all_users": all_users,
-                "current_server": {
-                    "id": srv_id,
-                    "name": srv["name"],
-                    "owner": srv["owner"],
-                    "invite": srv.get("invite", "PUBLIC"),
-                    "banner": srv.get("banner", "#18191c"),
-                    "channels": srv["channels"],
-                    "roles": srv["roles"],
-                    "can_manage": self.is_server_admin(srv_id, me),
-                    "can_promote": self.is_server_owner(srv_id, me)
-                },
+                             "current_server": {
+                 "id": srv_id,
+                 "name": srv["name"],
+                 "owner": srv["owner"],
+                 "invite": srv.get("invite", "PUBLIC"),
+                 "banner": srv.get("banner", "#18191c"),
+                 "channels": srv["channels"],
+                 "roles": roles_out,
+                 "bots": srv.get("bots", []),
+                 "can_manage": self.is_server_admin(srv_id, me),
+                 "can_promote": self.is_server_owner(srv_id, me),
+                 "can_manage_channels": self.has_perm(srv_id, "manage_channels", me),
+                 "can_manage_roles": self.has_perm(srv_id, "manage_roles", me),
+                 "can_delete_messages": self.has_perm(srv_id, "delete_messages", me)
+             },
                 "members": members
             })
             return
+
 
         elif path == "/api/messages":
             me = self.get_current_user()
@@ -303,7 +401,7 @@ class AuthHandler(SimpleHTTPRequestHandler):
             self.send_json(200, {"status": "Deleted"})
         elif self.path == "/api/channels/add":
             srv_id = data.get("server", "")
-            if not self.is_server_admin(srv_id):
+            if not self.has_perm(srv_id, "manage_channels"):
                 self.send_json(403, {"error": "Forbidden"})
                 return
             ch = data.get("name", "").strip().lower().replace(" ", "-")
@@ -316,8 +414,8 @@ class AuthHandler(SimpleHTTPRequestHandler):
 
         elif self.path == "/api/channels/delete":
             srv_id, ch = data.get("server", ""), data.get("name", "")
-            if not self.is_server_admin(srv_id) or ch == "general":
-                self.send_json(400, {"error": "Cannot delete general"})
+            if not self.has_perm(srv_id, "manage_channels") or ch == "general":
+                self.send_json(400, {"error": "Cannot delete channel"})
                 return
             if ch in SERVERS[srv_id]["channels"]:
                 SERVERS[srv_id]["channels"].remove(ch)
@@ -333,9 +431,31 @@ class AuthHandler(SimpleHTTPRequestHandler):
             if not r_name:
                 self.send_json(400, {"error": "Role name required"})
                 return
-            SERVERS[srv_id]["roles"][r_name[:20]] = data.get("color", "#5865f2").strip()
+            SERVERS[srv_id]["roles"][r_name[:20]] = {
+                "color": data.get("color", "#5865f2").strip(),
+                "perms": []
+            }
             save_data()
             self.send_json(200, {"status": "Role created"})
+
+        elif self.path == "/api/roles/perms":
+            srv_id = data.get("server", "")
+            r_name = data.get("name", "")
+            perms = data.get("perms", [])
+            if not self.is_server_owner(srv_id):
+                self.send_json(403, {"error": "Only server owner or staff can set permissions"})
+                return
+            srv = SERVERS[srv_id]
+            if r_name not in srv["roles"]:
+                self.send_json(404, {"error": "Role not found"})
+                return
+            valid = {"manage_channels", "manage_roles", "delete_messages"}
+            srv["roles"][r_name] = {
+                "color": self.role_color(srv, r_name),
+                "perms": [p for p in perms if p in valid]
+            }
+            save_data()
+            self.send_json(200, {"status": "Permissions updated"})
 
         elif self.path == "/api/roles/delete":
             srv_id, r_name = data.get("server", ""), data.get("name", "")
@@ -351,7 +471,7 @@ class AuthHandler(SimpleHTTPRequestHandler):
 
         elif self.path == "/api/roles/toggle":
             srv_id, target, r_name = data.get("server", ""), data.get("username", ""), data.get("role", "")
-            if not self.is_server_admin(srv_id):
+            if not self.has_perm(srv_id, "manage_roles"):
                 self.send_json(403, {"error": "Forbidden"})
                 return
             srv = SERVERS[srv_id]
@@ -365,6 +485,7 @@ class AuthHandler(SimpleHTTPRequestHandler):
                 m_roles.append(r_name)
             save_data()
             self.send_json(200, {"status": "Updated"})
+
 
         elif self.path == "/api/servers/toggle_admin":
             srv_id, target = data.get("server", ""), data.get("username", "")
@@ -427,7 +548,7 @@ class AuthHandler(SimpleHTTPRequestHandler):
             if msg_type == "channel" and not self.is_server_member(srv_id, user):
                 self.send_json(403, {"error": "Not a member of this server"})
                 return
-            MESSAGES.append({
+            msg_obj = {
                 "id": secrets.token_hex(6),
                 "type": msg_type,
                 "server": srv_id,
@@ -435,11 +556,15 @@ class AuthHandler(SimpleHTTPRequestHandler):
                 "to": target,
                 "time": datetime.now().strftime("%H:%M"),
                 "text": text[:300]
-            })
-            if len(MESSAGES) > 200:
+            }
+            MESSAGES.append(msg_obj)
+            if msg_type == "channel":
+                self.run_bots(srv_id, msg_obj)
+            while len(MESSAGES) > 200:
                 MESSAGES.pop(0)
             save_data()
             self.send_json(200, {"status": "Sent"})
+
 
         elif self.path == "/api/messages/delete":
             me = self.get_current_user()
@@ -453,8 +578,9 @@ class AuthHandler(SimpleHTTPRequestHandler):
                     can_del = (
                         m.get("from") == me
                         or self.is_site_admin(me)
-                        or (m.get("type") == "channel" and self.is_server_admin(srv_id, me))
+                        or (m.get("type") == "channel" and self.has_perm(srv_id, "delete_messages", me))
                     )
+
                     if not can_del:
                         self.send_json(403, {"error": "Forbidden"})
                         return
@@ -463,6 +589,37 @@ class AuthHandler(SimpleHTTPRequestHandler):
                     self.send_json(200, {"status": "Deleted"})
                     return
             self.send_json(404, {"error": "Message not found"})
+        elif self.path == "/api/bots/save":
+            srv_id = data.get("server", "")
+            if not self.is_server_admin(srv_id):
+                self.send_json(403, {"error": "Forbidden"})
+                return
+            name = data.get("name", "").strip()[:24]
+            t_val = data.get("trigger_val", "").strip()
+            if not name or not t_val:
+                self.send_json(400, {"error": "Bot name and trigger required"})
+                return
+            bots = SERVERS[srv_id].setdefault("bots", [])
+            bots.append({
+                "id": secrets.token_hex(4),
+                "name": name,
+                "trigger": data.get("trigger", "equals"),
+                "trigger_val": t_val[:60],
+                "action": data.get("action", "reply"),
+                "action_val": data.get("action_val", "")[:200]
+            })
+            save_data()
+            self.send_json(200, {"status": "Bot saved"})
+   
+        elif self.path == "/api/bots/delete":
+            srv_id, bot_id = data.get("server", ""), data.get("id", "")
+            if not self.is_server_admin(srv_id):
+                self.send_json(403, {"error": "Forbidden"})
+                return
+        SERVERS[srv_id]["bots"] = [b for b in SERVERS[srv_id].get("bots", []) if b.get("id") != bot_id]
+        save_data()
+        self.send_json(200, {"status": "Bot deleted"})
+
 
 port = int(os.environ.get("PORT", 8000))
 print(f"Running DisJS on port {port}")

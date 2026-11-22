@@ -23,13 +23,30 @@
         "memes"
       ],
       "roles": {
-        "VIP": "#f0b232"
+        "VIP": "#f0b232",
+        "Verified": {
+          "color": "#08ff00",
+          "perms": [
+            "delete_messages"
+          ]
+        }
       },
       "member_roles": {
         "victim": [
           "VIP"
-        ]
-      }
+        ],
+        "admin": []
+      },
+      "bots": [
+        {
+          "id": "3ddcf3f4",
+          "name": "VibeCord Helper",
+          "trigger": "equals",
+          "trigger_val": "!verify",
+          "action": "role",
+          "action_val": "Verified"
+        }
+      ]
     },
     "c9de909d": {
       "name": "DisJS Staff",
@@ -40,7 +57,8 @@
         "dsfsjkhfjhsjkhsdfhhdfshhsdfhjsdfhfdhdfshfsdhhdfhsdfhdfhjdfhjdfhsdfhsdfhjdsfhjdsddffhjkhhjhjhjf0895805808080880808023032032132132123023103121212313212133210321032103210321021021021030112123011221313023132132103102210233"
       ],
       "roles": {},
-      "member_roles": {}
+      "member_roles": {},
+      "bots": []
     },
     "3e00242c": {
       "name": "Uh",
@@ -71,5 +89,33 @@
       "member_roles": {}
     }
   },
-  "messages": []
+  "messages": [
+    {
+      "id": "ce02f18b38aa",
+      "type": "channel",
+      "server": "hub",
+      "from": "admin",
+      "to": "general",
+      "time": "10:15",
+      "text": "!verify"
+    },
+    {
+      "id": "1a993eaad4f1",
+      "type": "channel",
+      "server": "hub",
+      "from": "admin",
+      "to": "general",
+      "time": "10:15",
+      "text": "!verify"
+    },
+    {
+      "id": "a9e092e8f27f",
+      "type": "channel",
+      "server": "c9de909d",
+      "from": "admin",
+      "to": "general",
+      "time": "10:15",
+      "text": "!verify"
+    }
+  ]
 }
